@@ -25,14 +25,18 @@ def on_ui_tabs():
         split = ssm2sd_model_name.split(":")
         hash = split[0]
         filename = split[1].strip()
-        new_name = f"{filename} [{hash}]"
-       
+        if "[" in shared.opts.sd_model_checkpoint and "]" in shared.opts.sd_model_checkpoint:
+            new_name = f"{filename} [{hash}]"
+        else:
+            new_name = f"{filename}]"
         return new_name
 
     def ssm_model_sd2ssm(sd2ssm_model_name):
-        split = re.split(r'[\[\]]', sd2ssm_model_name)
-        new_name = f"{split[1]}: {split[0].strip()}"
-
+        if "[" in sd2ssm_model_name and "]" in sd2ssm_model_name:
+            split = re.split(r'[\[\]]', sd2ssm_model_name)
+            new_name = f"{split[1]}: {split[0].strip()}"
+        else:
+            new_name = sd2ssm_model_name
         return new_name
 
     def ssm_generate(*args):
