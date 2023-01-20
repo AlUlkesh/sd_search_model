@@ -6,6 +6,8 @@ With more and more models I find it increasingly difficult to find the one with 
 
 To help with this a little, I wrote this simple extension.
 
+<img src="images/extension.jpg"/>
+
 The query wildcard-searches over all hash-versions and the filename. Results are filtered and the model can be directly loaded by clicking its radio button.
 
 ## Installation
