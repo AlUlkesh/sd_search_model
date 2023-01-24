@@ -6,8 +6,18 @@ from modules import ui
 import fnmatch
 import gradio as gr
 import hashlib
-import json
 import os
+
+class Hashes:
+    hashes_dict = {}
+    def __init__(self, filename=None, modification_time=None, hash_old=None, hash_new=None, hash_new_short=None, visible=None):
+        self.filename = filename
+        self.modification_time = modification_time
+        self.hash_old = hash_old
+        self.hash_new = hash_new
+        self.hash_new_short = hash_new_short
+        self.visible = visible
+        self.__class__.hashes_dict[filename] = self
 
 def timeout(js):
     # For some reason gradio is not ready yet, when javascript starts, so here's a timeout to make it work
@@ -15,43 +25,46 @@ def timeout(js):
 
     return js_timeout
 
-def hash_display(filename, hash, hash_types):
+def hash_display(filename, hash_old, hash_new, hash_new_short, hash_types):
     display = filename
-    split = hash.split(" / ")
     if len(hash_types) > 0:
         display = f"{display} ["
         if "old" in hash_types:
-            display = f"{display}{split[0]} / "
+            display = f"{display}{hash_old} / "
         if "sha256" in hash_types:
-            display = f"{display}{split[1]} / "
+            display = f"{display}{hash_new} / "
         if "sha256_short" in hash_types:
-            display = f"{display}{split[2]} / "
+            display = f"{display}{hash_new_short} / "
         display = display[:-3] + "]"
 
     return display
 
 def on_ui_tabs():
-    def ssm_choices(hashes, hash_types):
-        if hashes:
-            choices = []
-            for filename, (hash, visible) in hashes.items():
-                if visible:
-                    display = hash_display(filename, hash, hash_types)
-                    choices.append(display)
+    def ssm_choices(hash_types, sort_option):
+        choices = []
+
+        if sort_option == "time":
+            Hashes.hashes_dict=dict(sorted(Hashes.hashes_dict.items(), key=lambda x: x[1].modification_time, reverse=True))
+        else:
+            Hashes.hashes_dict=dict(sorted(Hashes.hashes_dict.items(), key=lambda x: x[1].filename.lower(), reverse=False))
+
+        for hashes in Hashes.hashes_dict.values():
+            if hashes.visible:
+                display = hash_display(hashes.filename, hashes.hash_old, hashes.hash_new, hashes.hash_new_short, hash_types)
+                choices.append(display)
 
         return choices
 
-    def ssm_without_hashes(ssm2sd_model_name):
-        split = ssm2sd_model_name.split(" [")
+    def ssm_without_hashes(model_name):
+        split = model_name.split(" [")
         new_name = split[0]
         return new_name
 
-    def ssm_with_hashes(sd2ssm_model_name, ssm_hashes_textbox_value, ssm_hash_version_value):
-        hashes = json.loads(ssm_hashes_textbox_value)
+    def ssm_with_hashes(model_name, ssm_hash_version_value):
         new_name = ""
-        for filename, (hash, visible) in hashes.items():
-            if filename == sd2ssm_model_name:
-                new_name = hash_display(filename, hash, ssm_hash_version_value)
+        for hashes in Hashes.hashes_dict.values():
+            if hashes.filename == model_name:
+                new_name = hash_display(hashes.filename, hashes.hash_old, hashes.hash_new, hashes.hash_new_short, ssm_hash_version_value)
                 break
 
         return new_name
@@ -65,8 +78,8 @@ def on_ui_tabs():
             for file in filenames:
                 if file.endswith('.ckpt') or file.endswith('.safetensors'):
                     model_files.append(os.path.join(dirpath, file))
-        # Get the hashes of each file and store it in a dictionary
-        hashes = {}
+        # Get the hashes of each file and store them in Hashes class
+        Hashes.hashes_dict.clear()
         for file in model_files:
             with open(file, 'rb') as f:
                 # Old hash function, implemented here in case it gets removed
@@ -79,9 +92,9 @@ def on_ui_tabs():
                 hash_new_info.calculate_shorthash()
                 hash_new = hash_new_info.sha256
                 hash_new_short = hash_new_info.shorthash
-                hash_all = f"{hash_old} / {hash_new} / {hash_new_short}"
                 relative_path = os.path.relpath(file, model_path)
-                hashes[relative_path] = (hash_all, True)
+                modification_time = os.path.getmtime(file)
+                hashes = Hashes(filename=relative_path, modification_time=modification_time, hash_old=hash_old, hash_new=hash_new, hash_new_short=hash_new_short, visible=True)
 
         return hashes
 
@@ -89,45 +102,56 @@ def on_ui_tabs():
         hash_types = args[0]
         selected = args[1]
         ssm_trigger1_number = args[2] + 1
+        sort_option = args[3]
         hashes = ssm_generate()
-        ssm_hashes_textbox = json.dumps(hashes)
-        choices = ssm_choices(hashes, hash_types)
+        choices = ssm_choices(hash_types, sort_option)
 
-        return ssm_hashes_textbox, gr.update(choices=choices, value=selected), ssm_trigger1_number
+        return gr.update(choices=choices, value=selected), ssm_trigger1_number
 
     def ssm_search(*args):
         query = args[0]
-        hashes = json.loads(args[1])
-        hash_types = args[2]
-        selected = args[3]
-        ssm_trigger1_number = args[4] + 1
-        # Check if the query matches any filenames or hashes in the hashes dictionary
-        for filename, (hash, visible) in hashes.items():
-            query_wildcard = "*" + query + "*"
-            if fnmatch.fnmatch(filename, query_wildcard) or fnmatch.fnmatch(hash, query_wildcard):
-                hashes[filename] = (hash, True)
-            else:
-                hashes[filename] = (hash, False)
-        choices = ssm_choices(hashes, hash_types)
-
-        return gr.update(choices=choices, value=selected), json.dumps(hashes), ssm_trigger1_number
-
-    def ssm_reset(*args):
-        hashes = json.loads(args[0])
         hash_types = args[1]
         selected = args[2]
         ssm_trigger1_number = args[3] + 1
-        for filename, (hash, visible) in hashes.items():
-                hashes[filename] = (hash, True)
-        choices = ssm_choices(hashes, hash_types)
+        sort_option = args[4]
+        # Check if the query matches any filenames or hashes in the hashes dictionary
+        for hashes in Hashes.hashes_dict.values():
+            query_wildcard = "*" + query + "*"
+            if (fnmatch.fnmatch(hashes.filename, query_wildcard) or
+                ("old" in hash_types and fnmatch.fnmatch(hashes.hash_old, query_wildcard)) or
+                ("sha256" in hash_types and fnmatch.fnmatch(hashes.hash_new, query_wildcard)) or
+                ("sha256_short" in hash_types and fnmatch.fnmatch(hashes.hash_new_short, query_wildcard))):
+                hashes.visible = True
+            else:
+                hashes.visible = False
+        choices = ssm_choices(hash_types, sort_option)
+
+        return gr.update(choices=choices, value=selected), ssm_trigger1_number
+
+    def ssm_reset(*args):
+        hash_types = args[0]
+        selected = args[1]
+        ssm_trigger1_number = args[2] + 1
+        sort_option = args[3]
+        for hashes in Hashes.hashes_dict.values():
+                hashes.visible = True
+        choices = ssm_choices(hash_types, sort_option)
 
         return gr.update(choices=choices, value=selected), ssm_trigger1_number
 
     def ssm_hash_version_change(*args):
-        hashes = json.loads(args[0])
+        hash_types = args[0]
+        selected = args[1]
+        sort_option = args[2]
+        choices = ssm_choices(hash_types, sort_option)
+
+        return gr.update(choices=choices, value=selected)
+
+    def ssm_sort_change(*args):
+        sort_option = args[0]
         hash_types = args[1]
         selected = args[2]
-        choices = ssm_choices(hashes, hash_types)
+        choices = ssm_choices(hash_types, sort_option)
 
         return gr.update(choices=choices, value=selected)
 
@@ -142,7 +166,7 @@ def on_ui_tabs():
         ui.apply_setting("sd_model_checkpoint", choice_checkpoint_info.title)
        
         # Current model format for webui
-        choice = ssm_with_hashes(choice, ssm_hashes_textbox.value, ["sha256_short"])
+        choice = ssm_with_hashes(choice, ["sha256_short"])
 
         return choice
 
@@ -158,31 +182,32 @@ def on_ui_tabs():
             ssm_trigger1_number = gr.Number(label="ssm_trigger1", elem_id="ssm_trigger1", value=1, visible=False)
 
         with gr.Row():
-            ssm_hashes_textbox = gr.Textbox(label="ssm_hashes", elem_id="ssm_hashes", value=json.dumps(ssm_generate()), visible=False)
-
-        with gr.Row():
             ssm_hash_version_checkbox = gr.CheckboxGroup(label="Hash version", elem_id="ssm_hash_version", choices=("old", "sha256", "sha256_short"), value="old")
             ssm_radio1_button = gr.Button(value="Switch to/from one-line display", elem_id="ssm_radio1")
 
+        with gr.Row():
+            ssm_sort_radio = gr.Radio(label="Sort by", elem_id="ssm_sort", choices=("name", "time"), value="name")
+
         with gr.Box():
-            ssm_radio = gr.Radio(label="Hash: Filename", elem_id="ssm_radio", choices=ssm_choices(json.loads(ssm_hashes_textbox.value), ssm_hash_version_checkbox.value), value=ssm_with_hashes(shared.opts.sd_model_checkpoint, ssm_hashes_textbox.value, ssm_hash_version_checkbox.value))
+            ssm_generate()
+            ssm_radio = gr.Radio(label="Filename [Hashes]", elem_id="ssm_radio", choices=ssm_choices(ssm_hash_version_checkbox.value, ssm_sort_radio.value), value=ssm_with_hashes(shared.opts.sd_model_checkpoint, ssm_hash_version_checkbox.value))
 
         ssm_search_button.click(
             fn=ssm_search,
-            inputs=[ssm_query_textbox, ssm_hashes_textbox, ssm_hash_version_checkbox, ssm_radio, ssm_trigger1_number],
-            outputs=[ssm_radio, ssm_hashes_textbox, ssm_trigger1_number],
+            inputs=[ssm_query_textbox, ssm_hash_version_checkbox, ssm_radio, ssm_trigger1_number, ssm_sort_radio],
+            outputs=[ssm_radio, ssm_trigger1_number],
         )
 
         ssm_reset_button.click(
             fn=ssm_reset,
-            inputs=[ssm_hashes_textbox, ssm_hash_version_checkbox, ssm_radio, ssm_trigger1_number],
+            inputs=[ssm_hash_version_checkbox, ssm_radio, ssm_trigger1_number, ssm_sort_radio],
             outputs=[ssm_radio, ssm_trigger1_number],
         )
 
         ssm_generate_button.click(
             fn=ssm_generate_again,
-            inputs=[ssm_hash_version_checkbox, ssm_radio, ssm_trigger1_number],
-            outputs=[ssm_hashes_textbox, ssm_radio, ssm_trigger1_number],
+            inputs=[ssm_hash_version_checkbox, ssm_radio, ssm_trigger1_number, ssm_sort_radio],
+            outputs=[ssm_radio, ssm_trigger1_number],
         )
 
         ssm_current_textbox.change(
@@ -201,7 +226,13 @@ def on_ui_tabs():
 
         ssm_hash_version_checkbox.change(
             fn=ssm_hash_version_change,
-            inputs=[ssm_hashes_textbox, ssm_hash_version_checkbox, ssm_radio],
+            inputs=[ssm_hash_version_checkbox, ssm_radio, ssm_sort_radio],
+            outputs=[ssm_radio],
+        )
+
+        ssm_sort_radio.change(
+            fn=ssm_sort_change,
+            inputs=[ssm_sort_radio, ssm_hash_version_checkbox, ssm_radio],
             outputs=[ssm_radio],
         )
 
