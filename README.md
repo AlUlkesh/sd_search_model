@@ -20,3 +20,7 @@ You can also install it manually by running the following command from within th
 
 ## Requirements
 Requires at least commit [c1928cd](https://github.com/AUTOMATIC1111/stable-diffusion-webui/commit/c1928cdd6194928af0f53f70c51d59479b7025e2) of webui (2023-01-19) for full functionality.
+
+## First run
+The first run with this extension will take a bit longer, since the hashes for all models are calculated. One time only.
+
