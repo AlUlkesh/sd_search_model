@@ -119,13 +119,28 @@ def on_ui_tabs():
         selected = args[2]
         ssm_trigger1_number = args[3] + 1
         sort_option = args[4]
+        search_options = args[5]
+
+        search_filename = False
+        search_hash_old = False
+        search_hash_new = False
+        search_hash_new_short = False
+        if "name" in search_options:
+            search_filename = True
+        if ("only in displayed hashes" in search_options and "old" in hash_types) or ("only in displayed hashes" not in search_options):
+            search_hash_old = True
+        if ("only in displayed hashes" in search_options and "sha256" in hash_types) or ("only in displayed hashes" not in search_options):
+            search_hash_new = True
+        if ("only in displayed hashes" in search_options and "sha256_short" in hash_types) or ("only in displayed hashes" not in search_options):
+            search_hash_new_short = True
+
         # Check if the query matches any filenames or hashes in the hashes dictionary
         for hashes in Hashes.hashes_dict.values():
             query_wildcard = "*" + query + "*"
-            if (fnmatch.fnmatch(hashes.filename, query_wildcard) or
-                ("old" in hash_types and fnmatch.fnmatch(hashes.hash_old, query_wildcard)) or
-                ("sha256" in hash_types and fnmatch.fnmatch(hashes.hash_new, query_wildcard)) or
-                ("sha256_short" in hash_types and fnmatch.fnmatch(hashes.hash_new_short, query_wildcard))):
+            if  ((search_filename and fnmatch.fnmatch(hashes.filename, query_wildcard)) or
+                (search_hash_old and fnmatch.fnmatch(hashes.hash_old, query_wildcard)) or
+                (search_hash_new and fnmatch.fnmatch(hashes.hash_new, query_wildcard)) or
+                (search_hash_new_short and fnmatch.fnmatch(hashes.hash_new_short, query_wildcard))):
                 hashes.visible = True
             else:
                 hashes.visible = False
@@ -177,10 +192,16 @@ def on_ui_tabs():
 
     with gr.Blocks() as ssm_interface:
         with gr.Row():
-            ssm_query_textbox = gr.Textbox(label="Query", elem_id="ssm_query")
-            ssm_search_button = gr.Button(value="Search", elem_id="ssm_search", variant="primary")
-            ssm_reset_button = gr.Button(value="Reset Search", elem_id="ssm_reset")
-            ssm_generate_button = gr.Button(value='Refresh', elem_id="ssm_generate")
+            with gr.Column(scale=80):
+                ssm_query_textbox = gr.Textbox(label="Query", elem_id="ssm_query")
+            with gr.Column(scale=1):
+                ssm_search_options_checkbox = gr.CheckboxGroup(label="Search in", elem_id="ssm_search_options", choices=("name", "only in displayed hashes"), value=["name", "only in displayed hashes"])
+            with gr.Column(scale=1):
+                ssm_search_button = gr.Button(value="Search", elem_id="ssm_search", variant="primary")
+            with gr.Column(scale=1):
+                ssm_reset_button = gr.Button(value="Reset Search", elem_id="ssm_reset")
+            with gr.Column(scale=1):
+                ssm_generate_button = gr.Button(value='Refresh', elem_id="ssm_generate")
 
         with gr.Row():
             ssm_current_textbox = gr.Textbox(label="Currently loaded model", elem_id="ssm_current", value=shared.opts.sd_model_checkpoint)
@@ -199,7 +220,7 @@ def on_ui_tabs():
 
         ssm_search_button.click(
             fn=ssm_search,
-            inputs=[ssm_query_textbox, ssm_hash_version_checkbox, ssm_radio, ssm_trigger1_number, ssm_sort_radio],
+            inputs=[ssm_query_textbox, ssm_hash_version_checkbox, ssm_radio, ssm_trigger1_number, ssm_sort_radio, ssm_search_options_checkbox],
             outputs=[ssm_radio, ssm_trigger1_number],
         )
 
