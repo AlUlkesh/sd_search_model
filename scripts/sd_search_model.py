@@ -10,9 +10,10 @@ import os
 
 class Hashes:
     hashes_dict = {}
-    def __init__(self, filename=None, modification_time=None, hash_old=None, hash_new=None, hash_new_short=None, visible=None):
+    def __init__(self, filename=None, modification_time=None, filesize = None, hash_old=None, hash_new=None, hash_new_short=None, visible=None):
         self.filename = filename
         self.modification_time = modification_time
+        self.filesize = filesize
         self.hash_old = hash_old
         self.hash_new = hash_new
         self.hash_new_short = hash_new_short
@@ -43,7 +44,9 @@ def on_ui_tabs():
     def ssm_choices(hash_types, sort_option):
         choices = []
 
-        if sort_option == "time":
+        if sort_option == "size":
+            Hashes.hashes_dict=dict(sorted(Hashes.hashes_dict.items(), key=lambda x: x[1].filesize, reverse=True))
+        elif sort_option == "time":
             Hashes.hashes_dict=dict(sorted(Hashes.hashes_dict.items(), key=lambda x: x[1].modification_time, reverse=True))
         else:
             Hashes.hashes_dict=dict(sorted(Hashes.hashes_dict.items(), key=lambda x: x[1].filename.lower(), reverse=False))
@@ -93,8 +96,10 @@ def on_ui_tabs():
                 hash_new = hash_new_info.sha256
                 hash_new_short = hash_new_info.shorthash
                 relative_path = os.path.relpath(file, model_path)
-                modification_time = os.path.getmtime(file)
-                hashes = Hashes(filename=relative_path, modification_time=modification_time, hash_old=hash_old, hash_new=hash_new, hash_new_short=hash_new_short, visible=True)
+                stats = os.stat(file)
+                modification_time = stats.st_mtime
+                filesize = stats.st_size
+                hashes = Hashes(filename=relative_path, modification_time=modification_time, filesize=filesize, hash_old=hash_old, hash_new=hash_new, hash_new_short=hash_new_short, visible=True)
 
         return hashes
 
@@ -186,7 +191,7 @@ def on_ui_tabs():
             ssm_radio1_button = gr.Button(value="Switch to/from one-line display", elem_id="ssm_radio1")
 
         with gr.Row():
-            ssm_sort_radio = gr.Radio(label="Sort by", elem_id="ssm_sort", choices=("name", "time"), value="name")
+            ssm_sort_radio = gr.Radio(label="Sort by", elem_id="ssm_sort", choices=("name", "time", "size"), value="name")
 
         with gr.Box():
             ssm_generate()
