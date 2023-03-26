@@ -74,10 +74,13 @@ def on_ui_tabs():
 
     def ssm_generate(*args):
         # Get the list of all model-files in the directory tree
-        model_dir = "Stable-diffusion"
-        ckpt_dir = os.path.abspath(os.path.join(shared.cmd_opts.ckpt_dir or models_path, model_dir))
+        model_subdir = "Stable-diffusion"
+        if shared.cmd_opts.ckpt_dir:
+            model_dir = os.path.abspath(shared.cmd_opts.ckpt_dir)
+        else:
+            model_dir = os.path.abspath(os.path.join(models_path, model_subdir))
         model_files = []
-        for dirpath, dirnames, filenames in os.walk(ckpt_dir):
+        for dirpath, dirnames, filenames in os.walk(model_dir):
             for file in filenames:
                 if file.endswith('.ckpt') or file.endswith('.safetensors'):
                     model_files.append(os.path.join(dirpath, file))
@@ -95,7 +98,7 @@ def on_ui_tabs():
                 hash_new_info.calculate_shorthash()
                 hash_new = hash_new_info.sha256
                 hash_new_short = hash_new_info.shorthash
-                relative_path = os.path.relpath(file, ckpt_dir)
+                relative_path = os.path.relpath(file, model_dir)
                 stats = os.stat(file)
                 modification_time = stats.st_mtime
                 filesize = stats.st_size
