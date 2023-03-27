@@ -20,12 +20,6 @@ class Hashes:
         self.visible = visible
         self.__class__.hashes_dict[filename] = self
 
-def timeout(js):
-    # For some reason gradio is not ready yet, when javascript starts, so here's a timeout to make it work
-    js_timeout = "setTimeout(function() {" + js + "}, 200)"
-
-    return js_timeout
-
 def hash_display(filename, hash_old, hash_new, hash_new_short, hash_types):
     display = filename
     if len(hash_types) > 0:
@@ -243,14 +237,14 @@ def on_ui_tabs():
             fn=None,
             inputs=[],
             outputs=[],
-            _js=timeout('ssm_current_value=gradioApp().getElementById("ssm_current").querySelector("textarea").value;ssm_model_select=gradioApp().querySelectorAll("#setting_sd_model_checkpoint select option"); for (ssm_i=0; ssm_i < ssm_model_select.length; ssm_i++) {if (ssm_model_select[ssm_i].value == ssm_current_value) {ssm_model_select[ssm_i].selected=true; break;}}'),
+            _js="ssmLoadModel",
         )
 
         ssm_trigger1_number.change(
             fn=None,
             inputs=[],
             outputs=[],
-            _js=timeout('ssm_current_value=gradioApp().getElementById("ssm_current").querySelector("textarea").value;ssm_model_select=gradioApp().querySelectorAll("#setting_sd_model_checkpoint select option"); for (ssm_i=0; ssm_i < ssm_model_select.length; ssm_i++) {if (ssm_model_select[ssm_i].value == ssm_current_value) {ssm_model_select[ssm_i].selected=true; break;}}'),
+            _js="ssmLoadModel",
         )
 
         ssm_hash_version_checkbox.change(
@@ -269,7 +263,7 @@ def on_ui_tabs():
             fn=None,
             inputs=[],
             outputs=[],
-            _js=timeout('ssm_class = gradioApp().querySelectorAll(".flex.flex-wrap.gap-2");ssm_class.forEach(function(elem) {radio = elem.querySelectorAll("input[name=\'radio-ssm_radio\']");if (radio.length > 0) {if (elem.style.display == "block"){elem.style.display = "flex"} else {elem.style.display = "block";}}})'),
+            _js="ssmOneLineSwitch",
         )
 
         ssm_radio.change(
