@@ -176,7 +176,11 @@ def on_ui_tabs():
         choice = args[0]
        
         choice = ssm_without_hashes(choice)
-        model_dir = "Stable-diffusion"
+        model_subdir = "Stable-diffusion"
+        if shared.cmd_opts.ckpt_dir:
+            model_dir = os.path.abspath(shared.cmd_opts.ckpt_dir)
+        else:
+            model_dir = os.path.abspath(os.path.join(models_path, model_subdir))
         model_path = os.path.abspath(os.path.join(models_path, model_dir, choice))
         choice_checkpoint_info = sd_models.CheckpointInfo(model_path)
         choice_checkpoint_info.register()
