@@ -103,20 +103,18 @@ def on_ui_tabs():
     def ssm_generate_again(*args):
         hash_types = args[0]
         selected = args[1]
-        ssm_trigger1_number = args[2] + 1
-        sort_option = args[3]
+        sort_option = args[2]
         hashes = ssm_generate()
         choices = ssm_choices(hash_types, sort_option)
 
-        return gr.update(choices=choices, value=selected), ssm_trigger1_number
+        return gr.update(choices=choices, value=selected)
 
     def ssm_search(*args):
         query = args[0]
         hash_types = args[1]
         selected = args[2]
-        ssm_trigger1_number = args[3] + 1
-        sort_option = args[4]
-        search_options = args[5]
+        sort_option = args[3]
+        search_options = args[4]
 
         search_filename = False
         search_hash_old = False
@@ -143,18 +141,17 @@ def on_ui_tabs():
                 hashes.visible = False
         choices = ssm_choices(hash_types, sort_option)
 
-        return gr.update(choices=choices, value=selected), ssm_trigger1_number
+        return gr.update(choices=choices, value=selected)
 
     def ssm_reset(*args):
         hash_types = args[0]
         selected = args[1]
-        ssm_trigger1_number = args[2] + 1
-        sort_option = args[3]
+        sort_option = args[2]
         for hashes in Hashes.hashes_dict.values():
                 hashes.visible = True
         choices = ssm_choices(hash_types, sort_option)
 
-        return gr.update(choices=choices, value=selected), ssm_trigger1_number
+        return gr.update(choices=choices, value=selected)
 
     def ssm_hash_version_change(*args):
         hash_types = args[0]
@@ -176,20 +173,10 @@ def on_ui_tabs():
         choice = args[0]
        
         choice = ssm_without_hashes(choice)
-        model_subdir = "Stable-diffusion"
-        if shared.cmd_opts.ckpt_dir:
-            model_dir = os.path.abspath(shared.cmd_opts.ckpt_dir)
-        else:
-            model_dir = os.path.abspath(os.path.join(models_path, model_subdir))
-        model_path = os.path.abspath(os.path.join(models_path, model_dir, choice))
-        choice_checkpoint_info = sd_models.CheckpointInfo(model_path)
-        choice_checkpoint_info.register()
-        ui.apply_setting("sd_model_checkpoint", choice_checkpoint_info.title)
-       
         # Current model format for webui
-        choice = ssm_with_hashes(choice, ["sha256_short"])
+        ssm_current_textbox = ssm_with_hashes(choice, ["sha256_short"])
 
-        return choice
+        return ssm_current_textbox
 
     with gr.Blocks() as ssm_interface:
         with gr.Row():
@@ -204,13 +191,13 @@ def on_ui_tabs():
             with gr.Column(scale=1):
                 ssm_generate_button = gr.Button(value='Refresh', elem_id="ssm_generate")
 
-        with gr.Row():
-            ssm_current_textbox = gr.Textbox(label="Currently loaded model", elem_id="ssm_current", value=shared.opts.sd_model_checkpoint)
-            ssm_trigger1_number = gr.Number(label="ssm_trigger1", elem_id="ssm_trigger1", value=1, visible=False)
+        with gr.Row(visible=False):
+            ssm_current_textbox = gr.Textbox(label="Currently loaded model", elem_id="ssm_current", interactive=False)
+            ssm_js_dummy_return = gr.Textbox(interactive=False)
 
         with gr.Row():
             ssm_hash_version_checkbox = gr.CheckboxGroup(label="Hash version", elem_id="ssm_hash_version", choices=("old", "sha256", "sha256_short"), value="old")
-            ssm_radio1_button = gr.Button(value="Switch to/from one-line display", elem_id="ssm_radio1")
+            ssm_radio1l_button = gr.Button(value="Switch to/from one-line display", elem_id="ssm_radio1l")
 
         with gr.Row():
             ssm_sort_radio = gr.Radio(label="Sort by", elem_id="ssm_sort", choices=("name", "time", "size"), value="name")
@@ -221,34 +208,20 @@ def on_ui_tabs():
 
         ssm_search_button.click(
             fn=ssm_search,
-            inputs=[ssm_query_textbox, ssm_hash_version_checkbox, ssm_radio, ssm_trigger1_number, ssm_sort_radio, ssm_search_options_checkbox],
-            outputs=[ssm_radio, ssm_trigger1_number],
+            inputs=[ssm_query_textbox, ssm_hash_version_checkbox, ssm_radio, ssm_sort_radio, ssm_search_options_checkbox],
+            outputs=[ssm_radio],
         )
 
         ssm_reset_button.click(
             fn=ssm_reset,
-            inputs=[ssm_hash_version_checkbox, ssm_radio, ssm_trigger1_number, ssm_sort_radio],
-            outputs=[ssm_radio, ssm_trigger1_number],
+            inputs=[ssm_hash_version_checkbox, ssm_radio, ssm_sort_radio],
+            outputs=[ssm_radio],
         )
 
         ssm_generate_button.click(
             fn=ssm_generate_again,
-            inputs=[ssm_hash_version_checkbox, ssm_radio, ssm_trigger1_number, ssm_sort_radio],
-            outputs=[ssm_radio, ssm_trigger1_number],
-        )
-
-        ssm_current_textbox.change(
-            fn=None,
-            inputs=[],
-            outputs=[],
-            _js="ssmLoadModel",
-        )
-
-        ssm_trigger1_number.change(
-            fn=None,
-            inputs=[],
-            outputs=[],
-            _js="ssmLoadModel",
+            inputs=[ssm_hash_version_checkbox, ssm_radio, ssm_sort_radio],
+            outputs=[ssm_radio],
         )
 
         ssm_hash_version_checkbox.change(
@@ -263,10 +236,10 @@ def on_ui_tabs():
             outputs=[ssm_radio],
         )
 
-        ssm_radio1_button.click(
+        ssm_radio1l_button.click(
             fn=None,
             inputs=[],
-            outputs=[],
+            outputs=[ssm_js_dummy_return],
             _js="ssmOneLineSwitch",
         )
 
@@ -274,6 +247,11 @@ def on_ui_tabs():
             fn=ssm_radio_change,
             inputs=[ssm_radio],
             outputs=[ssm_current_textbox],
+        ).then(
+            fn=None,
+            inputs=[ssm_current_textbox],
+            outputs=[ssm_js_dummy_return],
+            _js="ssmLoadModel",
         )
 
     return [(ssm_interface, "Search model", "ssm_interface")]
